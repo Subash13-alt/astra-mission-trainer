@@ -10,6 +10,8 @@ and crew health. Every action has a cost, so every choice is a trade-off.
 - **No accounts, no personal data.** Progress is saved in the browser (LocalStorage).
 - **Works offline** (except live NASA panels, which fall back to clearly-labelled archived samples).
 
+https://astra-mission-trainer.vercel.app/
+
 ---
 
 ## Quick start
