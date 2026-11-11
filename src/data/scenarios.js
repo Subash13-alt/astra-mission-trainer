@@ -1,0 +1,707 @@
+/**
+ * Scenario library. Every scenario has a situation, an explanation, three
+ * choices, resource costs, consequences and a lesson.
+ *
+ * Choice fields (all optional except id/label/safety):
+ *   deltas      – resource changes that always happen (costs and gains)
+ *   risk        – [{ when?, deltas }] first matching entry applies; negative
+ *                 values are scaled by the difficulty's riskMult
+ *   effects     – ids from EFFECT_LIBRARY (timed effects)
+ *   apLoss      – number of actions lost today, or 'all'
+ *   research    – research points gained (or lost)
+ *   reserveCost – { battery | emergencyFood | spareParts | oxygenTank: n }
+ *   safety      – 2 great, 1 okay, 0 risky (used by scoring)
+ *
+ * Text may contain {delay}, replaced with the planet's radio delay.
+ * All gameplay numbers are fictional and for balance only.
+ */
+
+const SunBlockedChoices = (place) => [
+  {
+    id: 'A',
+    icon: '🔋',
+    label: 'Switch to power-saver mode',
+    costText: '⏱️ Costs research time',
+    research: -1,
+    deltas: { electricity: 6 },
+    effects: ['powerSaver'],
+    safety: 2,
+    consequence: `The crew turns off extra machines and pauses a science project. Power lasts longer while the Sun is hidden ${place}.`,
+    lesson:
+      'Saving power before it runs out is smarter than fixing it after. Turning things off for a while is a normal astronaut skill.',
+  },
+  {
+    id: 'B',
+    icon: '🔌',
+    label: 'Use the emergency batteries',
+    costText: '🔋 Uses an emergency battery',
+    reserveCost: { battery: 1 },
+    deltas: { electricity: 15 },
+    safety: 2,
+    consequence:
+      'The emergency batteries switch on and fill your power. They are used up now, so use them wisely!',
+    lesson:
+      'Backup batteries are for special moments. Once they are used, you cannot use them again.',
+  },
+  {
+    id: 'C',
+    icon: '💡',
+    label: 'Keep everything running as usual',
+    costText: '⚠️ Drains electricity quickly',
+    risk: [{ deltas: { electricity: -8 } }],
+    safety: 0,
+    consequence:
+      'Everything stays on, but electricity drops fast. Your crew has less power for the important machines.',
+    lesson: 'Machines you do not need can waste power. Always check what is really necessary.',
+  },
+];
+
+export const SCENARIOS = {
+  'solar-storm': {
+    id: 'solar-storm',
+    title: 'Solar Storm Warning',
+    emoji: '☀️',
+    kind: 'emergency',
+    planets: ['moon', 'mars'],
+    realData: 'donki',
+    situation: 'A solar storm is approaching your outpost!',
+    explanation:
+      'The Sun sometimes throws out bursts of energy and tiny particles. This is called a solar storm. It can make space radiation stronger for a while. In this game the danger is a simulated risk level, not a real measurement.',
+    hint: 'Radiation protection is your shield. Which choice keeps the crew safe, and what does it cost?',
+    choices: [
+      {
+        id: 'A',
+        icon: '🛡️',
+        label: 'Activate extra radiation protection',
+        costText: '⚡ Costs electricity',
+        deltas: { electricity: -10, radiation: 18 },
+        safety: 2,
+        consequence:
+          'The shields glow bright. The crew stays safe and your radiation protection is stronger. It used 10% of your electricity.',
+        lesson:
+          'Extra shielding needs power. Planning your electricity ahead means you can protect the crew when a storm comes.',
+      },
+      {
+        id: 'B',
+        icon: '🏠',
+        label: 'Move the crew into the protected shelter',
+        costText: '⏱️ Costs research time (no more actions today)',
+        deltas: { electricity: -2 },
+        apLoss: 'all',
+        research: -1,
+        safety: 2,
+        consequence:
+          'Everyone waits safely in the shelter. No experiments today, but the whole crew is safe.',
+        lesson:
+          'A shelter has extra-thick walls. Space agencies plan storm shelters so crews have a safe place to wait.',
+      },
+      {
+        id: 'C',
+        icon: '🔧',
+        label: 'Continue normal operations',
+        costText: '⚠️ Higher simulated radiation risk',
+        risk: [
+          { when: { radiation: { lt: 50 } }, deltas: { health: -14, radiation: -10 } },
+          { deltas: { health: -6, radiation: -8 } },
+        ],
+        safety: 0,
+        consequence:
+          'Work goes on, but the simulated radiation risk was high and the crew feels unwell. The habitat’s protection wore down too.',
+        lesson:
+          'Ignoring a warning can cost more later. In space, safety comes first. Strong protection before the storm helps a lot.',
+      },
+    ],
+  },
+
+  'water-shortage': {
+    id: 'water-shortage',
+    title: 'Water Shortage',
+    emoji: '💧',
+    kind: 'emergency',
+    planets: ['moon', 'mars'],
+    situation: 'Your water supply is running low.',
+    explanation:
+      'Every drop of water in space was carried there or made there. Astronauts clean and reuse their water again and again. This is called recycling.',
+    hint: 'Recycling gives water back but uses electricity. Do you have enough power?',
+    choices: [
+      {
+        id: 'A',
+        icon: '♻️',
+        label: 'Activate the water recycling system',
+        costText: '⚡ Costs electricity',
+        deltas: { electricity: -6, water: 12 },
+        safety: 2,
+        consequence: 'The recycler hums and clean water flows. You gained water and spent some power.',
+        lesson: 'Recycling turns used water into drinking water. It saves a lot of water but needs electricity.',
+      },
+      {
+        id: 'B',
+        icon: '🚿',
+        label: 'Reduce non-essential water use',
+        costText: '🌱 Slower farming for a few days',
+        deltas: { water: 3 },
+        effects: ['waterSaver', 'farmingSlow'],
+        safety: 1,
+        consequence:
+          'The crew takes shorter washes and the plants get less water. You use less water, but the greenhouse grows more slowly.',
+        lesson: 'Using less is a real way to save. But saving in one place can slow down another, like farming.',
+      },
+      {
+        id: 'C',
+        icon: '🚰',
+        label: 'Continue normal water usage',
+        costText: '⚠️ Lower future water reserves',
+        risk: [{ deltas: { water: -4 } }],
+        safety: 0,
+        consequence: 'Water use stays the same, so your reserves keep dropping.',
+        lesson: 'When a supply is low, doing nothing makes the problem bigger. Act early!',
+      },
+    ],
+  },
+
+  'power-failure': {
+    id: 'power-failure',
+    title: 'Low Power Alert',
+    emoji: '⚡',
+    kind: 'emergency',
+    planets: ['moon', 'mars'],
+    situation: 'Your outpost is running low on electricity.',
+    explanation:
+      'Electricity runs the air machines, water recycler, radio, lights and experiments. If power runs out, the life-support machines struggle.',
+    hint: 'Power is needed for almost everything. What could you switch off for a while?',
+    choices: [
+      {
+        id: 'A',
+        icon: '🔋',
+        label: 'Activate emergency batteries',
+        costText: '🔋 Uses an emergency battery',
+        reserveCost: { battery: 1 },
+        deltas: { electricity: 20 },
+        safety: 2,
+        consequence: 'The batteries switch on. Power is back up, and one emergency battery is now used.',
+        lesson: 'Batteries store energy for later. They are great backups, but you only have a few.',
+      },
+      {
+        id: 'B',
+        icon: '🔬',
+        label: 'Shut down scientific experiments',
+        costText: '⏱️ Costs research progress',
+        deltas: { electricity: 6 },
+        research: -1,
+        effects: ['powerSaver', 'experimentsPaused'],
+        safety: 2,
+        consequence:
+          'Experiments pause and power is saved. Science waits a few days, but life support stays strong.',
+        lesson: 'Life support always comes before science. Experiments can wait. Breathing cannot!',
+      },
+      {
+        id: 'C',
+        icon: '💡',
+        label: 'Reduce non-essential lighting',
+        costText: '😕 Lower comfort, but saves power',
+        deltas: { electricity: 4, health: -2 },
+        effects: ['dimLights'],
+        safety: 1,
+        consequence: 'The base is dimmer. It is less comfortable, but you save a little power.',
+        lesson: 'Small savings add up. Dimming lights helps, though it will not solve a big problem alone.',
+      },
+    ],
+  },
+
+  'food-shortage': {
+    id: 'food-shortage',
+    title: 'Food Shortage',
+    emoji: '🌾',
+    kind: 'emergency',
+    planets: ['moon', 'mars'],
+    situation: 'Your food reserves are decreasing.',
+    explanation:
+      'Astronauts need lots of energy. Packed food is heavy to carry from Earth, so future bases may grow some food in greenhouses.',
+    hint: 'A greenhouse makes food but needs water and power. Check both first!',
+    choices: [
+      {
+        id: 'A',
+        icon: '🌱',
+        label: 'Start the greenhouse',
+        costText: '💧 Costs water and electricity',
+        deltas: { water: -5, electricity: -5, food: 12 },
+        safety: 2,
+        consequence: 'Fresh plants start to grow. You spent some water and power to make more food.',
+        lesson: 'Growing food needs water, light and power. Every resource is connected!',
+      },
+      {
+        id: 'B',
+        icon: '🥫',
+        label: 'Use stored emergency food',
+        costText: '🥫 Uses an emergency food pack',
+        reserveCost: { emergencyFood: 1 },
+        deltas: { food: 15 },
+        safety: 2,
+        consequence: 'The crew opens an emergency food pack. Food goes up, and the pack is used up.',
+        lesson: 'Emergency food is a safety net. It is best saved for when you really need it.',
+      },
+      {
+        id: 'C',
+        icon: '🍽️',
+        label: 'Reduce food consumption',
+        costText: '😕 Lower crew wellbeing',
+        deltas: { health: -3 },
+        effects: ['foodSaver'],
+        safety: 1,
+        consequence: 'Meals are smaller. Food lasts longer, but the crew feels a little tired.',
+        lesson: 'Eating less saves food, but astronauts need energy to stay healthy. It is only a short-term fix.',
+      },
+    ],
+  },
+
+  'oxygen-low': {
+    id: 'oxygen-low',
+    title: 'Fresh Air Alert',
+    emoji: '🫁',
+    kind: 'emergency',
+    planets: ['moon', 'mars'],
+    situation: 'The air in your habitat is getting stale.',
+    explanation:
+      'Astronauts breathe in oxygen and breathe out carbon dioxide. Machines clean the air and make new oxygen, and that takes electricity.',
+    hint: 'You can make air, save air, or use a spare tank. Which cost fits your day?',
+    choices: [
+      {
+        id: 'A',
+        icon: '🏭',
+        label: 'Boost the oxygen generator',
+        costText: '⚡ Costs electricity',
+        deltas: { electricity: -6, oxygen: 14 },
+        safety: 2,
+        consequence: 'The oxygen generator works harder. The air is fresher and your power is lower.',
+        lesson: 'Making oxygen takes energy. That is why electricity is so important in space.',
+      },
+      {
+        id: 'B',
+        icon: '🫧',
+        label: 'Open a spare oxygen tank',
+        costText: '🫧 Uses a spare oxygen tank',
+        reserveCost: { oxygenTank: 1 },
+        deltas: { oxygen: 16 },
+        safety: 2,
+        consequence: 'A spare tank releases fresh oxygen. The tank is empty now.',
+        lesson: 'Spare tanks are for emergencies. When they are gone, you must make oxygen yourself.',
+      },
+      {
+        id: 'C',
+        icon: '🧘',
+        label: 'Slow down and rest',
+        costText: '⏱️ Costs research time',
+        research: -1,
+        effects: ['calmCrew'],
+        safety: 1,
+        consequence: 'The crew works slowly and breathes less air. It helps for a few days.',
+        lesson: 'Resting uses less oxygen. But it only slows the problem. It does not make new air.',
+      },
+    ],
+  },
+
+  'air-filter': {
+    id: 'air-filter',
+    title: 'Dusty Air Filter',
+    emoji: '🌫️',
+    kind: 'learning',
+    planets: ['moon', 'mars'],
+    situation: 'The air filter is getting dusty.',
+    explanation:
+      'Filters catch dust so the crew can breathe clean air. Moon dust is sharp and sticky, and Mars dust is very fine. Both can clog machines.',
+    hint: 'Spare parts are limited. Cleaning costs time and power. What fits today?',
+    choices: [
+      {
+        id: 'A',
+        icon: '🧽',
+        label: 'Clean the filter now',
+        costText: '⏱️ Costs time and a little power',
+        deltas: { electricity: -3, oxygen: 6 },
+        apLoss: 1,
+        safety: 2,
+        consequence: 'The filter is clean and the air machines work better. It took time and a little power.',
+        lesson: 'Looking after equipment early stops bigger problems later.',
+      },
+      {
+        id: 'B',
+        icon: '🔧',
+        label: 'Swap in a spare filter',
+        costText: '🔧 Uses a spare part',
+        reserveCost: { spareParts: 1 },
+        deltas: { oxygen: 10 },
+        safety: 1,
+        consequence: 'A brand-new filter goes in quickly. You have one less spare part now.',
+        lesson: 'Spare parts are fast, but there are only a few. Cleaning can save them for bigger repairs.',
+      },
+      {
+        id: 'C',
+        icon: '🤷',
+        label: 'Ignore it for now',
+        costText: '⚠️ Air machines work harder',
+        effects: ['dustyFilter'],
+        safety: 0,
+        consequence: 'The air machines have to work harder for the next few days, using more oxygen.',
+        lesson: 'Small problems grow when we ignore them. Checking equipment is part of every astronaut’s day.',
+      },
+    ],
+  },
+
+  'crew-tired': {
+    id: 'crew-tired',
+    title: 'Tired Crew',
+    emoji: '😴',
+    kind: 'learning',
+    planets: ['moon', 'mars'],
+    situation: 'The crew is feeling tired after many busy days.',
+    explanation:
+      'In low gravity, muscles and bones can get weaker. Astronauts exercise and rest regularly to stay strong and happy.',
+    hint: 'Healthy astronauts do better science. What helps the crew recover?',
+    choices: [
+      {
+        id: 'A',
+        icon: '🛋️',
+        label: 'Take a rest afternoon',
+        costText: '⏱️ Costs research time',
+        deltas: { health: 10, food: -2 },
+        research: -1,
+        safety: 2,
+        consequence: 'Everyone rests, chats and eats a good meal. The crew feels much better.',
+        lesson: 'Rest is part of the mission. A rested crew makes safer decisions.',
+      },
+      {
+        id: 'B',
+        icon: '🏃',
+        label: 'Do a fun exercise routine',
+        costText: '⚡ Costs a little power and water',
+        deltas: { health: 7, electricity: -3, water: -2 },
+        safety: 2,
+        consequence: 'The crew exercises together and has fun. Muscles stay strong!',
+        lesson: 'Astronauts on the International Space Station exercise for about two hours most days.',
+      },
+      {
+        id: 'C',
+        icon: '🛠️',
+        label: 'Keep working without a break',
+        costText: '⚠️ Crew health goes down',
+        research: 1,
+        risk: [{ deltas: { health: -8 } }],
+        safety: 0,
+        consequence: 'You get a bit more science done, but the crew is worn out.',
+        lesson: 'More research is not worth it if the crew gets unwell. Safety comes before science.',
+      },
+    ],
+  },
+
+  'science-opportunity': {
+    id: 'science-opportunity',
+    title: 'Interesting Rocks!',
+    emoji: '🪨',
+    kind: 'learning',
+    planets: ['moon', 'mars'],
+    situation: 'The crew spots some interesting rocks near the base.',
+    explanation:
+      'Rocks hold clues about how a planet or moon formed. Collecting samples is a big part of exploration, but going outside uses suit air.',
+    hint: 'Science is exciting, but never at the cost of safety. Which plan is careful?',
+    choices: [
+      {
+        id: 'A',
+        icon: '📋',
+        label: 'Plan a careful sample trip',
+        costText: '⚡ Costs power, air and time',
+        deltas: { electricity: -4, oxygen: -3 },
+        apLoss: 1,
+        research: 2,
+        safety: 2,
+        consequence: 'The crew follows a safe plan and brings back great samples. Two research points earned!',
+        lesson: 'Good scientists plan ahead. A careful plan keeps everyone safe and gets good results.',
+      },
+      {
+        id: 'B',
+        icon: '🏃',
+        label: 'Make a quick grab',
+        costText: '⚠️ A little risky if protection is low',
+        deltas: { oxygen: -2 },
+        research: 1,
+        risk: [{ when: { radiation: { lt: 50 } }, deltas: { health: -6 } }],
+        safety: 1,
+        consequence: 'The crew grabs a sample fast. It is fine, but going out in a hurry is not ideal.',
+        lesson: 'Rushing outside is riskier, especially when habitat protection is low.',
+      },
+      {
+        id: 'C',
+        icon: '⏳',
+        label: 'Wait until later',
+        costText: '🔭 Miss this science chance',
+        safety: 1,
+        consequence: 'The crew waits. No risk and no cost, but no new discovery today.',
+        lesson: 'Waiting is safe, but exploration needs some careful steps too.',
+      },
+    ],
+  },
+
+  'equipment-fault': {
+    id: 'equipment-fault',
+    title: 'Greenhouse Pump Problem',
+    emoji: '🔧',
+    kind: 'emergency',
+    planets: ['moon', 'mars'],
+    situation: 'The greenhouse water pump has stopped working.',
+    explanation:
+      'Plants need water to grow. When a machine breaks far from Earth, the crew must fix it themselves using spare parts or their own skills.',
+    hint: 'Spare parts are quick but limited. Fixing by hand takes time.',
+    choices: [
+      {
+        id: 'A',
+        icon: '🔧',
+        label: 'Repair it with a spare part',
+        costText: '🔧 Uses a spare part',
+        reserveCost: { spareParts: 1 },
+        deltas: { electricity: -2, food: 6 },
+        safety: 2,
+        consequence: 'The new pump works perfectly and the plants perk up. You used a spare part.',
+        lesson: 'Spare parts let crews repair things quickly. They must be rationed carefully.',
+      },
+      {
+        id: 'B',
+        icon: '🖐️',
+        label: 'Fix it by hand',
+        costText: '⏱️ Costs a lot of time and some water',
+        deltas: { water: -3 },
+        apLoss: 2,
+        safety: 1,
+        consequence: 'It takes most of the day, but the pump works again. No spare parts used.',
+        lesson: 'Crews learn to fix things themselves. It saves parts but costs time.',
+      },
+      {
+        id: 'C',
+        icon: '👀',
+        label: 'Wait and see',
+        costText: '⚠️ Plants grow slowly',
+        effects: ['plantsStalled'],
+        safety: 0,
+        consequence: 'The plants grow slowly without the pump, so food gets used up faster.',
+        lesson: 'Waiting made the problem bigger. Fix things before they affect other systems.',
+      },
+    ],
+  },
+
+  'shielding-materials': {
+    id: 'shielding-materials',
+    title: 'Shielding Materials',
+    emoji: '🧱',
+    kind: 'learning',
+    planets: ['moon', 'mars'],
+    situation: 'You found extra materials that could make your shelter stronger.',
+    explanation:
+      'Thick walls, water and even piles of soil can block some space radiation. Water is good at blocking radiation, and future bases may use local soil too.',
+    hint: 'Different materials have different costs. Which cost can you afford?',
+    choices: [
+      {
+        id: 'A',
+        icon: '💧',
+        label: 'Build a water wall',
+        costText: '💧 Costs water and time',
+        deltas: { water: -8, radiation: 14, electricity: -1 },
+        apLoss: 1,
+        safety: 2,
+        consequence: 'A wall of water tanks surrounds the sleeping area. Radiation protection goes up!',
+        lesson: 'Water is a good radiation blocker, and astronauts need it anyway.',
+      },
+      {
+        id: 'B',
+        icon: '⛰️',
+        label: 'Pile soil against the habitat walls',
+        costText: '⏱️ Hard work: uses air and food',
+        deltas: { oxygen: -3, food: -2, radiation: 10 },
+        apLoss: 2,
+        safety: 2,
+        consequence: 'Piles of soil cover the habitat walls. It was hard work, but protection improves.',
+        lesson: 'Moon and Mars soil can help shield a base, and it does not have to be carried from Earth.',
+      },
+      {
+        id: 'C',
+        icon: '📦',
+        label: 'Save the materials for later',
+        costText: '🛡️ No new protection yet',
+        safety: 1,
+        consequence: 'The materials are stored safely. Protection stays the same for now.',
+        lesson: 'Saving is fine, but good protection works best when it is built before a storm.',
+      },
+    ],
+  },
+
+  'comm-delay': {
+    id: 'comm-delay',
+    title: 'Message to Earth',
+    emoji: '📡',
+    kind: 'learning',
+    planets: ['moon', 'mars'],
+    situation: 'Your message to Earth will take time to arrive.',
+    explanation: {
+      moon:
+        'Radio waves travel at the speed of light, but the Moon is far away. A message takes about 1.3 seconds to reach Earth. That is quick, but not instant!',
+      mars:
+        'Mars is much farther away. A message can take about 3 to 22 minutes one way, depending on where Earth and Mars are. In this game we use {delay} minutes. A question and an answer could take almost half an hour!',
+    },
+    hint: 'On Mars, waiting for answers is slow. Which message fits the situation?',
+    choices: [
+      {
+        id: 'A',
+        icon: '📊',
+        label: 'Send a detailed research report',
+        costText: '⚡ Costs communication power and time',
+        deltas: { electricity: -4, health: 2 },
+        apLoss: 1,
+        research: 1,
+        safety: 2,
+        consequence: 'Earth’s scientists get your report. Sharing discoveries makes the whole team smarter.',
+        lesson: 'Sending data uses power. Mission control on Earth can study it and send advice.',
+      },
+      {
+        id: 'B',
+        icon: '🚨',
+        label: 'Send a short emergency message',
+        costText: '📻 Uses communication priority',
+        deltas: { electricity: -2 },
+        safety: 1,
+        consequence: 'A short message goes out fast. Emergency channels are for urgent problems, so use them carefully.',
+        lesson: 'Emergency messages are important, but a long wait still happens on Mars.',
+      },
+      {
+        id: 'C',
+        icon: '🧠',
+        label: 'Make a local decision',
+        costText: '😬 More responsibility for the crew',
+        risk: [{ when: { oxygen: { lt: 40 } }, deltas: { health: -6 } }, { deltas: { health: -2 } }],
+        safety: 1,
+        consequence: 'The crew decides for themselves. It feels like a big responsibility!',
+        lesson: 'Far from Earth, crews must be able to decide quickly and safely by themselves.',
+      },
+    ],
+  },
+
+  'tiny-leak': {
+    id: 'tiny-leak',
+    title: 'Tiny Air Leak',
+    emoji: '💨',
+    kind: 'emergency',
+    planets: ['moon', 'mars'],
+    situation: 'A sensor says the habitat air pressure is slowly dropping.',
+    explanation:
+      'Habitats keep air inside, just like a balloon. A tiny crack can let air escape slowly, so astronauts check and repair walls often.',
+    hint: 'This is a slow leak, so you have time to choose. What can you spare?',
+    choices: [
+      {
+        id: 'A',
+        icon: '🩹',
+        label: 'Seal it with a patch kit',
+        costText: '🔧 Uses a spare part and some time',
+        reserveCost: { spareParts: 1 },
+        apLoss: 1,
+        safety: 2,
+        consequence: 'The patch holds! The air stays inside and the sensor goes back to normal.',
+        lesson: 'Patch kits are made for jobs like this. Finding leaks early makes them easy to fix.',
+      },
+      {
+        id: 'B',
+        icon: '🧑‍🔧',
+        label: 'Repair the crack by hand',
+        costText: '⏱️ Costs time, power and some air',
+        deltas: { electricity: -2, oxygen: -4 },
+        apLoss: 2,
+        safety: 2,
+        consequence: 'It takes a lot of work, but the crew fixes the crack without using spare parts.',
+        lesson: 'Careful repairs keep a base safe. Teamwork helps a lot!',
+      },
+      {
+        id: 'C',
+        icon: '👀',
+        label: 'Keep watching it',
+        costText: '⚠️ Air slowly escapes',
+        effects: ['smallLeak'],
+        safety: 0,
+        consequence: 'The leak does not get fixed, so oxygen is used up faster for a few days.',
+        lesson: 'Small leaks do not fix themselves. Quick action protects the crew.',
+      },
+    ],
+  },
+
+  'lunar-night': {
+    id: 'lunar-night',
+    title: 'The Long Lunar Night',
+    emoji: '🌑',
+    kind: 'emergency',
+    planets: ['moon'],
+    situation: 'The Sun is setting. The long Moon night is beginning!',
+    explanation:
+      'A night on the Moon lasts about two weeks. Solar panels cannot make power in the dark, and it gets extremely cold. In this game the night is shortened to three days.',
+    hint: 'No sunlight means no solar power. How will you make your electricity last?',
+    choices: SunBlockedChoices('at night'),
+  },
+
+  'mars-dust-storm': {
+    id: 'mars-dust-storm',
+    title: 'Martian Dust Storm',
+    emoji: '🌪️',
+    kind: 'emergency',
+    planets: ['mars'],
+    situation: 'A giant dust storm is covering the sky!',
+    explanation:
+      'Dust storms on Mars can hide the Sun for days. Solar panels get dusty and make much less power. Some storms are small, and some grow huge.',
+    hint: 'Dust hides the Sun, so your panels make less power. How will you make your electricity last?',
+    choices: SunBlockedChoices('by dust'),
+  },
+
+  'final-challenge': {
+    id: 'final-challenge',
+    title: 'Final Challenge!',
+    emoji: '🏁',
+    kind: 'emergency',
+    planets: ['moon', 'mars'],
+    realData: 'donki',
+    situation: 'A strong space weather alert arrives just as the crew is finishing the mission!',
+    explanation:
+      'This is your final test. Remember what you have learned: protect the crew, watch your resources, and do not take risks just to finish a little more science.',
+    hint: 'You have almost made it! Safety first, even in the final days.',
+    choices: [
+      {
+        id: 'A',
+        icon: '🛡️',
+        label: 'Shelter the crew and boost protection',
+        costText: '⚡ Costs electricity and time',
+        deltas: { electricity: -8, radiation: 14 },
+        apLoss: 1,
+        safety: 2,
+        consequence: 'The crew is safe in the shelter and the habitat’s protection is strong.',
+        lesson: 'Good commanders prepare for the worst and protect their team.',
+      },
+      {
+        id: 'B',
+        icon: '🏠',
+        label: 'Shelter the crew only',
+        costText: '⏱️ No more actions today',
+        deltas: { electricity: -2 },
+        apLoss: 'all',
+        safety: 1,
+        consequence: 'The crew waits in the shelter. They are safe, but habitat protection is unchanged.',
+        lesson: 'Sheltering is safe. Strengthening the habitat as well gives even better protection.',
+      },
+      {
+        id: 'C',
+        icon: '🔬',
+        label: 'Rush to finish the experiments',
+        costText: '⚠️ High simulated radiation risk',
+        research: 2,
+        risk: [
+          { when: { radiation: { lt: 50 } }, deltas: { health: -14, radiation: -12 } },
+          { deltas: { health: -6, radiation: -10 } },
+        ],
+        safety: 0,
+        consequence: 'You get more science, but the crew takes a big simulated risk. It was not worth it!',
+        lesson: 'Great scientists never put the crew in danger for extra data. A safe crew can always do more science tomorrow.',
+      },
+    ],
+  },
+};
+
+export const getScenario = (id) => SCENARIOS[id] || null;
